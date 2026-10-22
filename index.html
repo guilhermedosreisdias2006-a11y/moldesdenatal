@@ -348,6 +348,41 @@ fbq('init','910422491624375');
 fbq('track','PageView');
 </script>
 <!-- End Meta Pixel -->
+<!-- UTMify: retain attribution for checkout buttons, including the upgrade offer. -->
+<script id="checkout-attribution">
+(function(){
+  const storageKey='natal-checkout-attribution-v1';
+  function allowed(key){return /^utm_/i.test(key)||/^(src|sck|xcod|sub[1-5]|fbclid|gclid|ttclid|msclkid)$/i.test(key);}
+  function readCurrent(){
+    const result=new URLSearchParams();
+    new URLSearchParams(window.location.search).forEach(function(value,key){
+      if(allowed(key)&&value)result.set(key,value);
+    });
+    return result;
+  }
+  let attribution=readCurrent();
+  if(attribution.size){
+    try{sessionStorage.setItem(storageKey,attribution.toString());}catch(error){}
+  }else{
+    try{
+      new URLSearchParams(sessionStorage.getItem(storageKey)||'').forEach(function(value,key){
+        if(allowed(key)&&value)attribution.set(key,value);
+      });
+    }catch(error){}
+  }
+  window.buildTrackedCheckoutUrl=function(base){
+    try{
+      const url=new URL(base,window.location.href);
+      const current=readCurrent();
+      const parameters=current.size?current:attribution;
+      parameters.forEach(function(value,key){url.searchParams.set(key,value);});
+      return url.href;
+    }catch(error){return base;}
+  };
+})();
+</script>
+<script src="https://cdn.utmify.com.br/scripts/utms/latest.js"
+  data-utmify-prevent-xcod-sck data-utmify-prevent-subids async defer></script>
 </head>
 <body>
 <noscript><img height="1" width="1" style="display:none" alt="" src="https://www.facebook.com/tr?id=910422491624375&amp;ev=PageView&amp;noscript=1"></noscript>
@@ -562,7 +597,8 @@ fbq('track','PageView');
   function remember(){seen=true;try{sessionStorage.setItem(storageKey,'1')}catch(e){}}
   function close(){if(dialog.open)dialog.close();document.documentElement.classList.remove('upgrade-open');}
   function checkout(option,status){
-    const url=checkouts[option];
+    const baseUrl=checkouts[option];
+    const url=baseUrl?window.buildTrackedCheckoutUrl(baseUrl):null;
     if(!url)return;
     if(!/^https:\/\//i.test(url))return;
     const checkoutDetails={
